@@ -1,0 +1,11 @@
+sku,name,description,cost,price,stock,lowStockThreshold,supplierId
+PROD001,Wireless Mouse,Ergonomic wireless mouse with USB receiver,15.50,29.99,50,10,1
+PROD002,USB Keyboard,Mechanical keyboard with RGB lighting,45.00,89.99,30,5,1
+PROD003,HDMI Cable 2m,High-speed HDMI cable 2 meters,5.00,12.99,100,20,2
+PROD004,Laptop Stand,Adjustable aluminum laptop stand,25.00,49.99,25,5,2
+PROD005,Webcam HD,1080p HD webcam with microphone,35.00,69.99,15,5,1
+PROD006,USB-C Hub,7-in-1 USB-C hub with HDMI and card reader,20.00,39.99,40,10,3
+PROD007,Desk Lamp LED,Adjustable LED desk lamp with touch control,18.00,34.99,20,5,3
+PROD008,Phone Holder,Universal phone holder for desk,8.00,15.99,60,15,2
+PROD009,Cable Organizer,Cable management box with 6 slots,12.00,24.99,35,10,3
+PROD010,Monitor Screen Cleaner,Screen cleaning kit with microfiber cloth,6.00,11.99,80,20,2

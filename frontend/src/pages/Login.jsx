@@ -103,6 +103,8 @@ export const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
               required
+              inputProps={{ minLength: 6 }}
+              helperText="Minimum 6 characters"
             />
             <Button
               fullWidth

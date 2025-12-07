@@ -38,8 +38,11 @@ import {
   Warning as WarningIcon,
   KeyboardArrowDown as ArrowDownIcon,
   KeyboardArrowUp as ArrowUpIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  FileDownload as DownloadIcon,
+  FileUpload as UploadIcon
 } from '@mui/icons-material';
+import { CSVLink } from 'react-csv';
 
 const PRODUCTS_QUERY = gql`
   query Products {
@@ -394,6 +397,75 @@ export const InventoryPanel = () => {
                     }}
                     sx={{ width: 250 }}
                   />
+                  <CSVLink
+                    data={productsData?.products || []}
+                    headers={[
+                      { label: 'SKU', key: 'sku' },
+                      { label: 'Name', key: 'name' },
+                      { label: 'Description', key: 'description' },
+                      { label: 'Cost', key: 'cost' },
+                      { label: 'Price', key: 'price' },
+                      { label: 'Stock', key: 'stock' },
+                      { label: 'Low Stock Threshold', key: 'lowStockThreshold' },
+                      { label: 'Supplier ID', key: 'supplier.id' },
+                      { label: 'Supplier Name', key: 'supplier.name' }
+                    ]}
+                    filename="products.csv"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      size="small"
+                    >
+                      Export CSV
+                    </Button>
+                  </CSVLink>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<UploadIcon />}
+                    size="small"
+                  >
+                    Import CSV
+                    <input
+                      type="file"
+                      hidden
+                      accept=".csv"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const text = event.target.result;
+                            const rows = text.split('\n').slice(1); // Skip header
+                            rows.forEach(row => {
+                              if (row.trim()) {
+                                const [sku, name, description, cost, price, stock, lowStockThreshold, supplierId] = row.split(',');
+                                createProduct({
+                                  variables: {
+                                    input: {
+                                      sku: sku.trim(),
+                                      name: name.trim(),
+                                      description: description.trim(),
+                                      cost: parseFloat(cost),
+                                      price: parseFloat(price),
+                                      stock: parseInt(stock),
+                                      lowStockThreshold: parseInt(lowStockThreshold),
+                                      supplierId: parseInt(supplierId)
+                                    }
+                                  }
+                                });
+                              }
+                            });
+                            showSuccess('Products imported successfully');
+                          };
+                          reader.readAsText(file);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </Button>
                   <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -489,6 +561,68 @@ export const InventoryPanel = () => {
                     }}
                     sx={{ width: 250 }}
                   />
+                  <CSVLink
+                    data={suppliersData?.suppliers || []}
+                    headers={[
+                      { label: 'Name', key: 'name' },
+                      { label: 'Contact', key: 'contact' },
+                      { label: 'Email', key: 'email' },
+                      { label: 'Phone', key: 'phone' },
+                      { label: 'Address', key: 'address' }
+                    ]}
+                    filename="suppliers.csv"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      size="small"
+                    >
+                      Export CSV
+                    </Button>
+                  </CSVLink>
+                  <Button
+                    variant="outlined"
+                    component="label"
+                    startIcon={<UploadIcon />}
+                    size="small"
+                  >
+                    Import CSV
+                    <input
+                      type="file"
+                      hidden
+                      accept=".csv"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            const text = event.target.result;
+                            const rows = text.split('\n').slice(1); // Skip header
+                            rows.forEach(row => {
+                              if (row.trim()) {
+                                const [name, contact, email, phone, address] = row.split(',');
+                                createSupplier({
+                                  variables: {
+                                    input: {
+                                      name: name.trim(),
+                                      contact: contact.trim(),
+                                      email: email.trim(),
+                                      phone: phone.trim(),
+                                      address: address.trim()
+                                    }
+                                  }
+                                });
+                              }
+                            });
+                            showSuccess('Suppliers imported successfully');
+                          };
+                          reader.readAsText(file);
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </Button>
                   <Button
                     variant="contained"
                     startIcon={<AddIcon />}
@@ -679,9 +813,9 @@ export const InventoryPanel = () => {
                             <Chip
                               label={order.status}
                               color={
-                                order.status === 'approved' ? 'success' :
-                                order.status === 'pending' ? 'warning' :
-                                order.status === 'received' ? 'info' : 'default'
+                                order.status === 'received' ? 'success' :
+                                order.status === 'approved' ? 'info' :
+                                order.status === 'pending' ? 'warning' : 'default'
                               }
                               size="small"
                             />
@@ -839,6 +973,39 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate name length
+    if (formData.name.trim().length < 2) {
+      alert('Product name must be at least 2 characters');
+      return;
+    }
+    
+    // Validate cost and price
+    const cost = parseFloat(formData.cost);
+    const price = parseFloat(formData.price);
+    
+    if (cost <= 0) {
+      alert('Cost must be greater than zero');
+      return;
+    }
+    
+    if (price <= 0) {
+      alert('Price must be greater than zero');
+      return;
+    }
+    
+    if (price <= cost) {
+      alert('Selling price must be greater than cost');
+      return;
+    }
+    
+    // Validate stock
+    const stock = parseInt(formData.stock);
+    if (stock < 0) {
+      alert('Stock cannot be negative');
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -846,7 +1013,7 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle>{product ? 'Edit Product' : 'Add Product'}</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <TextField
             fullWidth
             label="Product Name"
@@ -854,6 +1021,8 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             margin="normal"
             required
+            inputProps={{ minLength: 2 }}
+            helperText="Minimum 2 characters"
           />
           <TextField
             fullWidth
@@ -880,7 +1049,8 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
             onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
             margin="normal"
             required
-            inputProps={{ step: '0.01' }}
+            inputProps={{ step: '0.01', min: 0.01 }}
+            helperText="Must be greater than 0"
           />
           <TextField
             fullWidth
@@ -890,7 +1060,8 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
             onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             margin="normal"
             required
-            inputProps={{ step: '0.01' }}
+            inputProps={{ step: '0.01', min: 0.01 }}
+            helperText="Must be greater than cost"
           />
           <TextField
             fullWidth
@@ -900,6 +1071,7 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
             onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
             margin="normal"
             required
+            inputProps={{ min: 0 }}
           />
           <TextField
             fullWidth
@@ -909,6 +1081,7 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
             onChange={(e) => setFormData({ ...formData, lowStockThreshold: e.target.value })}
             margin="normal"
             required
+            inputProps={{ min: 0 }}
           />
           <TextField
             select
@@ -917,6 +1090,7 @@ const ProductDialog = ({ open, onClose, onSubmit, product, suppliers }) => {
             value={formData.supplierId}
             onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
             SelectProps={{ native: true }}
+            InputLabelProps={{ shrink: true }}
             margin="normal"
             required
           >
@@ -971,6 +1145,20 @@ const SupplierDialog = ({ open, onClose, onSubmit, supplier }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate name length
+    if (formData.name.trim().length < 2) {
+      alert('Supplier name must be at least 2 characters');
+      return;
+    }
+    
+    // Validate phone number (10 digits)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(formData.phone.replace(/\D/g, ''))) {
+      alert('Phone number must be 10 digits');
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -978,7 +1166,7 @@ const SupplierDialog = ({ open, onClose, onSubmit, supplier }) => {
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
         <DialogTitle>{supplier ? 'Edit Supplier' : 'Add Supplier'}</DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           <TextField
             fullWidth
             label="Supplier Name"
@@ -986,6 +1174,8 @@ const SupplierDialog = ({ open, onClose, onSubmit, supplier }) => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             margin="normal"
             required
+            inputProps={{ minLength: 2 }}
+            helperText="Minimum 2 characters"
           />
           <TextField
             fullWidth
@@ -1011,6 +1201,8 @@ const SupplierDialog = ({ open, onClose, onSubmit, supplier }) => {
             onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             margin="normal"
             required
+            inputProps={{ pattern: '[0-9]{10}', maxLength: 10 }}
+            helperText="10-digit phone number"
           />
           <TextField
             fullWidth
@@ -1058,6 +1250,26 @@ const OrderDialog = ({ open, onClose, onSubmit, suppliers, products, reorderProd
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate total is not zero
+    const total = calculateTotal();
+    if (total <= 0) {
+      alert('Order total must be greater than zero');
+      return;
+    }
+    
+    // Validate all quantities and prices are positive
+    const hasInvalidItems = formData.items.some(item => {
+      const qty = parseFloat(item.quantity);
+      const price = parseFloat(item.unitPrice);
+      return qty <= 0 || price <= 0;
+    });
+    
+    if (hasInvalidItems) {
+      alert('All quantities and prices must be greater than zero');
+      return;
+    }
+    
     onSubmit(formData);
     setFormData({ supplierId: '', items: [{ productId: '', quantity: '', unitPrice: '' }] });
   };
@@ -1100,6 +1312,7 @@ const OrderDialog = ({ open, onClose, onSubmit, suppliers, products, reorderProd
             value={formData.supplierId}
             onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
             SelectProps={{ native: true }}
+            InputLabelProps={{ shrink: true }}
             margin="normal"
             required
           >
@@ -1122,11 +1335,16 @@ const OrderDialog = ({ open, onClose, onSubmit, suppliers, products, reorderProd
                 value={item.productId}
                 onChange={(e) => updateItem(index, 'productId', e.target.value)}
                 SelectProps={{ native: true }}
+                InputLabelProps={{ shrink: true }}
                 margin="dense"
                 required
+                disabled={!formData.supplierId}
+                helperText={!formData.supplierId ? "Please select a supplier first" : ""}
               >
                 <option value="" disabled>Select Product</option>
-                {products.map(product => (
+                {products
+                  .filter(product => product.supplier.id === parseInt(formData.supplierId))
+                  .map(product => (
                   <option key={product.id} value={product.id}>
                     {product.name} ({product.sku})
                   </option>
@@ -1149,7 +1367,7 @@ const OrderDialog = ({ open, onClose, onSubmit, suppliers, products, reorderProd
                   onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
                   sx={{ flex: 1 }}
                   required
-                  inputProps={{ step: '0.01', min: 0 }}
+                  inputProps={{ step: '0.01', min: 0.01 }}
                 />
                 {formData.items.length > 1 && (
                   <IconButton onClick={() => removeItem(index)} color="error">

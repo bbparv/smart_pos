@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
 
 // Create reusable transporter
 const createTransporter = () => {
@@ -9,6 +10,110 @@ const createTransporter = () => {
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
+    }
+  });
+};
+
+/**
+ * Generate PDF receipt
+ * @param {Object} receiptData - Receipt information
+ * @returns {Promise<Buffer>} PDF buffer
+ */
+const generateReceiptPDF = (receiptData) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const buffers = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => {
+        const pdfBuffer = Buffer.concat(buffers);
+        resolve(pdfBuffer);
+      });
+
+      // Header
+      doc.fontSize(24)
+         .fillColor('#2563EB')
+         .text(receiptData.storeName || 'Smart POS', { align: 'center' });
+      
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text(receiptData.storeAddress || 'Inventory & Replenishment System', { align: 'center' });
+      
+      doc.moveDown();
+      
+      // Receipt Info
+      doc.fontSize(12)
+         .fillColor('#0F172A')
+         .text(`Receipt #: ${receiptData.receiptNumber}`, 50, doc.y);
+      
+      const date = new Date(parseInt(receiptData.transaction.createdAt));
+      const formattedDate = date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+      doc.text(`Date: ${formattedDate}`, 50, doc.y);
+      
+      if (receiptData.transaction.customerName) {
+        doc.text(`Customer: ${receiptData.transaction.customerName}`, 50, doc.y);
+      }
+      
+      doc.moveDown(2);
+      
+      // Table Header
+      const tableTop = doc.y;
+      doc.fontSize(10)
+         .fillColor('#FFFFFF')
+         .rect(50, tableTop, 495, 25)
+         .fill('#2563EB');
+      
+      doc.fillColor('#FFFFFF')
+         .text('Product', 60, tableTop + 8, { width: 200 })
+         .text('Qty', 270, tableTop + 8, { width: 50, align: 'center' })
+         .text('Price', 330, tableTop + 8, { width: 80, align: 'right' })
+         .text('Subtotal', 420, tableTop + 8, { width: 115, align: 'right' });
+      
+      // Table Rows
+      let yPosition = tableTop + 35;
+      doc.fillColor('#0F172A');
+      
+      receiptData.transaction.items.forEach((item, index) => {
+        const bgColor = index % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
+        doc.rect(50, yPosition - 5, 495, 25).fill(bgColor);
+        
+        doc.fillColor('#0F172A')
+           .text(item.product.name, 60, yPosition, { width: 200 })
+           .text(item.quantity.toString(), 270, yPosition, { width: 50, align: 'center' })
+           .text(`Rs.${item.price.toFixed(2)}`, 330, yPosition, { width: 80, align: 'right' })
+           .text(`Rs.${item.subtotal.toFixed(2)}`, 420, yPosition, { width: 115, align: 'right' });
+        
+        yPosition += 25;
+      });
+      
+      // Total
+      yPosition += 10;
+      doc.fontSize(12)
+         .fillColor('#0F172A')
+         .rect(50, yPosition, 495, 30)
+         .fill('#EFF6FF');
+      
+      doc.fillColor('#2563EB')
+         .text('TOTAL', 60, yPosition + 10, { width: 200 })
+         .fontSize(14)
+         .text(`Rs.${receiptData.transaction.total.toFixed(2)}`, 420, yPosition + 8, { width: 115, align: 'right' });
+      
+      // Footer
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text('Thank you for your business!', 50, yPosition + 60, { align: 'center' });
+      
+      doc.fontSize(8)
+         .text('This is a computer-generated receipt.', 50, yPosition + 80, { align: 'center' });
+      
+      doc.end();
+    } catch (error) {
+      reject(error);
     }
   });
 };
@@ -114,8 +219,18 @@ export const sendReceiptEmail = async (receiptData, customerEmail) => {
       `
     };
 
+    // Generate PDF receipt
+    const pdfBuffer = await generateReceiptPDF(receiptData);
+
+    // Add PDF attachment
+    mailOptions.attachments = [{
+      filename: `receipt_${receiptData.receiptNumber}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf'
+    }];
+
     await transporter.sendMail(mailOptions);
-    console.log(`Receipt email sent to: ${customerEmail}`);
+    console.log(`Receipt email with PDF sent to: ${customerEmail}`);
     return { success: true, message: 'Receipt sent successfully' };
   } catch (error) {
     console.error('Error sending receipt email:', error);
@@ -225,6 +340,129 @@ export const sendLowStockAlert = async (product, managerEmail) => {
 };
 
 /**
+ * Generate Purchase Order PDF
+ * @param {Object} orderData - Order information
+ * @returns {Promise<Buffer>} PDF buffer
+ */
+const generatePurchaseOrderPDF = (orderData) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const buffers = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => {
+        const pdfBuffer = Buffer.concat(buffers);
+        resolve(pdfBuffer);
+      });
+
+      // Header
+      doc.fontSize(24)
+         .fillColor('#2563EB')
+         .text('Purchase Order', { align: 'center' });
+      
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text('Smart POS Inventory Management', { align: 'center' });
+      
+      doc.moveDown();
+      
+      // Order Info
+      doc.fontSize(12)
+         .fillColor('#0F172A')
+         .text(`Order #: ${orderData.id}`, 50, doc.y);
+      
+      const date = new Date();
+      const formattedDate = date.toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+      doc.text(`Date: ${formattedDate}`, 50, doc.y);
+      
+      doc.moveDown();
+      
+      // Supplier Info
+      doc.fontSize(12)
+         .fillColor('#0F172A')
+         .text('Supplier:', 50, doc.y);
+      doc.fontSize(11)
+         .text(orderData.supplier.name, 50, doc.y);
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text(orderData.supplier.email, 50, doc.y);
+      doc.text(orderData.supplier.phone, 50, doc.y);
+      
+      doc.moveDown(2);
+      
+      // Table Header
+      const tableTop = doc.y;
+      doc.fontSize(10)
+         .fillColor('#FFFFFF')
+         .rect(50, tableTop, 495, 25)
+         .fill('#2563EB');
+      
+      doc.fillColor('#FFFFFF')
+         .text('Product', 60, tableTop + 8, { width: 200 })
+         .text('Qty', 270, tableTop + 8, { width: 50, align: 'center' })
+         .text('Unit Price', 330, tableTop + 8, { width: 80, align: 'right' })
+         .text('Subtotal', 420, tableTop + 8, { width: 115, align: 'right' });
+      
+      // Table Rows
+      let yPosition = tableTop + 35;
+      doc.fillColor('#0F172A');
+      
+      orderData.items.forEach((item, index) => {
+        const bgColor = index % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
+        doc.rect(50, yPosition - 5, 495, 25).fill(bgColor);
+        
+        doc.fillColor('#0F172A')
+           .text(item.product.name, 60, yPosition, { width: 200 })
+           .text(item.quantity.toString(), 270, yPosition, { width: 50, align: 'center' })
+           .text(`Rs.${item.unitPrice.toFixed(2)}`, 330, yPosition, { width: 80, align: 'right' })
+           .text(`Rs.${item.subtotal.toFixed(2)}`, 420, yPosition, { width: 115, align: 'right' });
+        
+        yPosition += 25;
+      });
+      
+      // Total
+      yPosition += 10;
+      doc.fontSize(12)
+         .fillColor('#0F172A')
+         .rect(50, yPosition, 495, 30)
+         .fill('#EFF6FF');
+      
+      doc.fillColor('#2563EB')
+         .text('TOTAL', 60, yPosition + 10, { width: 200 })
+         .fontSize(14)
+         .text(`Rs.${orderData.total.toFixed(2)}`, 420, yPosition + 8, { width: 115, align: 'right' });
+      
+      // Delivery Instructions
+      yPosition += 50;
+      doc.fontSize(11)
+         .fillColor('#0F172A')
+         .text('Delivery Instructions:', 50, yPosition);
+      
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text('Please confirm receipt of this order and provide an estimated delivery date.', 50, yPosition + 20, { width: 495 });
+      
+      // Footer
+      doc.fontSize(10)
+         .fillColor('#64748B')
+         .text('Thank you for your business!', 50, yPosition + 60, { align: 'center' });
+      
+      doc.fontSize(8)
+         .text('This is a computer-generated purchase order.', 50, yPosition + 80, { align: 'center' });
+      
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+/**
  * Send order approval notification to supplier
  */
 export const sendOrderApprovalNotification = async (order, managerEmail) => {
@@ -295,8 +533,18 @@ export const sendOrderApprovalNotification = async (order, managerEmail) => {
       `
     };
 
+    // Generate PDF purchase order
+    const pdfBuffer = await generatePurchaseOrderPDF(order);
+
+    // Add PDF attachment
+    mailOptions.attachments = [{
+      filename: `purchase_order_${order.id}.pdf`,
+      content: pdfBuffer,
+      contentType: 'application/pdf'
+    }];
+
     await transporter.sendMail(mailOptions);
-    console.log(`Order approval email sent for order #${order.id}`);
+    console.log(`Order approval email with PDF sent for order #${order.id}`);
   } catch (error) {
     console.error('Error sending order approval email:', error);
   }

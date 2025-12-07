@@ -36,9 +36,7 @@ import {
   Delete as DeleteIcon,
   ShoppingCart as CartIcon,
   Logout as LogoutIcon,
-  Receipt as ReceiptIcon,
-  Email as EmailIcon,
-  WhatsApp as WhatsAppIcon
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 
 const PRODUCTS_QUERY = gql`
@@ -112,8 +110,7 @@ export const POSPanel = () => {
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
-    email: '',
-    mobile: ''
+    email: ''
   });
 
   const { data, loading } = useQuery(PRODUCTS_QUERY);
@@ -129,8 +126,31 @@ export const POSPanel = () => {
       setReceipt(result.data.generateReceipt);
       setShowReceipt(true);
       setCart([]);
-      setSuccessMessage('Sale recorded successfully!');
-      setTimeout(() => setSuccessMessage(''), 3000);
+      
+      // Automatically send email if customer email exists
+      if (data.recordSale.customerEmail) {
+        try {
+          const emailResult = await sendReceiptEmailMutation({
+            variables: {
+              transactionId: data.recordSale.id,
+              customerEmail: data.recordSale.customerEmail
+            }
+          });
+          
+          if (emailResult.data.sendReceiptEmail.success) {
+            setSuccessMessage(`Sale recorded! Receipt sent to ${data.recordSale.customerEmail}`);
+          } else {
+            setSuccessMessage('Sale recorded! Failed to send email.');
+          }
+        } catch (error) {
+          console.error('Error sending receipt email:', error);
+          setSuccessMessage('Sale recorded! Failed to send email.');
+        }
+      } else {
+        setSuccessMessage('Sale recorded successfully!');
+      }
+      
+      setTimeout(() => setSuccessMessage(''), 5000);
     }
   });
 
@@ -198,91 +218,11 @@ export const POSPanel = () => {
       }
     });
     setShowCustomerDialog(false);
-    setCustomerInfo({ name: '', email: '', mobile: '' });
+    setCustomerInfo({ name: '', email: '' });
   };
 
   const printReceipt = () => {
     window.print();
-  };
-
-  const sendViaEmail = async () => {
-    if (!receipt || !receipt.transaction.customerEmail) return;
-    
-    try {
-      const result = await sendReceiptEmailMutation({
-        variables: {
-          transactionId: receipt.transaction.id,
-          customerEmail: receipt.transaction.customerEmail
-        }
-      });
-      
-      if (result.data.sendReceiptEmail.success) {
-        setSuccessMessage('Receipt sent successfully to ' + receipt.transaction.customerEmail);
-      }
-    } catch (error) {
-      console.error('Error sending receipt email:', error);
-      alert('Failed to send receipt email: ' + error.message);
-    }
-  };
-
-  const sendViaWhatsApp = () => {
-    if (!receipt) return;
-    
-    let mobile = receipt.transaction.customerMobile || '';
-    
-    // Format phone number for Indian WhatsApp
-    // Remove all non-digit characters
-    mobile = mobile.replace(/\D/g, '');
-    
-    // If number starts with 0, remove it
-    if (mobile.startsWith('0')) {
-      mobile = mobile.substring(1);
-    }
-    
-    // If number doesn't start with country code, add 91 (India)
-    if (!mobile.startsWith('91') && mobile.length === 10) {
-      mobile = '91' + mobile;
-    }
-    
-    // Ensure it's a valid Indian number (should be 12 digits: 91 + 10 digits)
-    if (mobile.length !== 12 || !mobile.startsWith('91')) {
-      alert('Invalid phone number format. Please use Indian format: +91XXXXXXXXXX or 10-digit number');
-      return;
-    }
-    
-    // Format date properly
-    const dateStr = receipt.transaction.createdAt;
-    let formattedDate;
-    try {
-      // Parse the date - handle both ISO string and timestamp
-      const date = new Date(parseInt(dateStr) || dateStr);
-      formattedDate = date.toLocaleString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        dateStyle: 'medium',
-        timeStyle: 'short'
-      });
-    } catch (e) {
-      formattedDate = new Date().toLocaleString('en-IN');
-    }
-    
-    const message = encodeURIComponent(
-      `*${receipt.storeName}*\n` +
-      `${receipt.storeAddress}\n\n` +
-      `*Receipt: ${receipt.receiptNumber}*\n` +
-      `Date: ${formattedDate}\n\n` +
-      `*Items:*\n` +
-      receipt.transaction.items.map(item => 
-        `${item.product.name} x ${item.quantity} = ₹${item.subtotal.toFixed(2)}`
-      ).join('\n') +
-      `\n\n*Total: ₹${receipt.transaction.total.toFixed(2)}*\n\n` +
-      `Thank you for your purchase!`
-    );
-    
-    const whatsappUrl = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      ? `whatsapp://send?phone=${mobile}&text=${message}`
-      : `https://web.whatsapp.com/send?phone=${mobile}&text=${message}`;
-    
-    window.open(whatsappUrl, '_blank');
   };
 
   return (
@@ -489,21 +429,6 @@ export const POSPanel = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShowReceipt(false)}>Close</Button>
-          <Button 
-            onClick={sendViaEmail} 
-            startIcon={<EmailIcon />}
-            disabled={!receipt?.transaction?.customerEmail || emailLoading}
-          >
-            {emailLoading ? 'Sending...' : 'Send via Email'}
-          </Button>
-          <Button 
-            onClick={sendViaWhatsApp} 
-            startIcon={<WhatsAppIcon />}
-            color="success"
-            disabled={!receipt?.transaction?.customerMobile}
-          >
-            Send via WhatsApp
-          </Button>
           <Button onClick={printReceipt} variant="contained">Print</Button>
         </DialogActions>
       </Dialog>
@@ -528,14 +453,6 @@ export const POSPanel = () => {
               onChange={(e) => setCustomerInfo({ ...customerInfo, email: e.target.value })}
               margin="normal"
               helperText="Required for email receipt"
-            />
-            <TextField
-              fullWidth
-              label="Mobile Number"
-              value={customerInfo.mobile}
-              onChange={(e) => setCustomerInfo({ ...customerInfo, mobile: e.target.value })}
-              margin="normal"
-              helperText="Required for WhatsApp receipt (with country code, e.g., +91XXXXXXXXXX)"
             />
           </Box>
         </DialogContent>

@@ -36,8 +36,11 @@ import {
   TrendingUp as TrendingUpIcon,
   Inventory as InventoryIcon,
   ShoppingCart as ShoppingCartIcon,
-  AttachMoney as MoneyIcon
+  AttachMoney as MoneyIcon,
+  FileDownload as DownloadIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
+import { CSVLink } from 'react-csv';
 import {
   LineChart,
   Line,
@@ -93,6 +96,21 @@ const AUDIT_LOGS_QUERY = gql`
       entity
       entityId
       timestamp
+    }
+  }
+`;
+
+const LOW_STOCK_QUERY = gql`
+  query LowStockProducts {
+    lowStockProducts {
+      id
+      name
+      sku
+      stock
+      lowStockThreshold
+      supplier {
+        name
+      }
     }
   }
 `;
@@ -180,6 +198,8 @@ export const AdminPanel = () => {
   const [userDialog, setUserDialog] = useState(false);
   const [configDialog, setConfigDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [userFilter, setUserFilter] = useState('all'); // For audit logs filtering
+
 
   const { data: usersData, refetch: refetchUsers } = useQuery(USERS_QUERY);
   const { data: rolesData } = useQuery(ROLES_QUERY);
@@ -189,6 +209,8 @@ export const AdminPanel = () => {
   const { data: configsData, refetch: refetchConfigs } = useQuery(SYSTEM_CONFIGS_QUERY);
   const { data: salesData } = useQuery(SALES_ANALYTICS_QUERY);
   const { data: inventoryData } = useQuery(INVENTORY_ANALYTICS_QUERY);
+  const { data: lowStockData } = useQuery(LOW_STOCK_QUERY);
+
 
   const [createUser] = useMutation(CREATE_USER_MUTATION, {
     onCompleted: () => {
@@ -270,6 +292,7 @@ export const AdminPanel = () => {
             <Tab label="Users" />
             <Tab label="System Config" />
             <Tab label="Audit Logs" />
+            <Tab label="Low Stock Alerts" />
           </Tabs>
 
           {/* Analytics Tab */}
@@ -538,6 +561,68 @@ export const AdminPanel = () => {
                   </Card>
                 </Grid>
               </Grid>
+
+              {/* Low Stock Products Section */}
+              <Box sx={{ mt: 4 }}>
+                <Typography variant="h6" gutterBottom sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <WarningIcon sx={{ mr: 1, color: '#EF4444' }} />
+                  Low Stock Products
+                </Typography>
+                {lowStockData?.lowStockProducts && lowStockData.lowStockProducts.length > 0 ? (
+                  <Card>
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>SKU</TableCell>
+                            <TableCell>Product Name</TableCell>
+                            <TableCell align="right">Current Stock</TableCell>
+                            <TableCell align="right">Threshold</TableCell>
+                            <TableCell>Supplier</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {lowStockData.lowStockProducts.slice(0, 5).map(product => (
+                            <TableRow key={product.id} hover>
+                              <TableCell>{product.sku}</TableCell>
+                              <TableCell>{product.name}</TableCell>
+                              <TableCell align="right">
+                                <Chip 
+                                  label={product.stock} 
+                                  color="error" 
+                                  size="small"
+                                  icon={<WarningIcon />}
+                                />
+                              </TableCell>
+                              <TableCell align="right">{product.lowStockThreshold}</TableCell>
+                              <TableCell>{product.supplier.name}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    {lowStockData.lowStockProducts.length > 5 && (
+                      <Box sx={{ p: 2, textAlign: 'center', borderTop: '1px solid #E5E7EB' }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Showing 5 of {lowStockData.lowStockProducts.length} low stock products. 
+                          View all in the Low Stock Alerts tab.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent>
+                      <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                        <WarningIcon sx={{ fontSize: 48, mb: 2, opacity: 0.3 }} />
+                        <Typography variant="body1">
+                          No low stock items. All products are above their thresholds.
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                )}
+              </Box>
             </Box>
           )}
 
@@ -643,9 +728,62 @@ export const AdminPanel = () => {
           {/* Audit Logs Tab */}
           {tabValue === 3 && (
             <Box sx={{ p: 3 }}>
-              <Typography variant="h5" gutterBottom>
-                Audit Logs
-              </Typography>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h5">
+                  Audit Logs
+                </Typography>
+                <Box display="flex" gap={2}>
+                  <TextField
+                    select
+                    size="small"
+                    label="Filter by User"
+                    value={userFilter}
+                    onChange={(e) => setUserFilter(e.target.value)}
+                    SelectProps={{ native: true }}
+                    sx={{ minWidth: 150 }}
+                  >
+                    <option value="all">All Users</option>
+                    <option value="admin">Admin</option>
+                    <option value="manager">Manager</option>
+                    <option value="cashier">Cashier</option>
+                  </TextField>
+                  <CSVLink
+                    data={
+                      auditLogsData?.auditLogs
+                        .filter(log => 
+                          userFilter === 'all' || 
+                          log.user.email.toLowerCase().includes(userFilter)
+                        )
+                        .map(log => ({
+                          timestamp: log.timestamp ? new Date(parseInt(log.timestamp)).toLocaleString() : 'N/A',
+                          user: log.user.name,
+                          email: log.user.email,
+                          action: log.action,
+                          entity: log.entity,
+                          entityId: log.entityId
+                        })) || []
+                    }
+                    headers={[
+                      { label: 'Timestamp', key: 'timestamp' },
+                      { label: 'User', key: 'user' },
+                      { label: 'Email', key: 'email' },
+                      { label: 'Action', key: 'action' },
+                      { label: 'Entity', key: 'entity' },
+                      { label: 'Entity ID', key: 'entityId' }
+                    ]}
+                    filename={`audit_logs_${userFilter}_${new Date().toISOString().split('T')[0]}.csv`}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <Button
+                      variant="outlined"
+                      startIcon={<DownloadIcon />}
+                      size="small"
+                    >
+                      Export CSV
+                    </Button>
+                  </CSVLink>
+                </Box>
+              </Box>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -658,7 +796,12 @@ export const AdminPanel = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {auditLogsData?.auditLogs.map(log => (
+                    {auditLogsData?.auditLogs
+                      .filter(log => 
+                        userFilter === 'all' || 
+                        log.user.email.toLowerCase().includes(userFilter)
+                      )
+                      .map(log => (
                       <TableRow key={log.id}>
                         <TableCell>{log.timestamp ? new Date(parseInt(log.timestamp)).toLocaleString() : 'N/A'}</TableCell>
                         <TableCell>{log.user.name}</TableCell>
@@ -672,6 +815,64 @@ export const AdminPanel = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
+            </Box>
+          )}
+
+          {/* Low Stock Alerts Tab */}
+          {tabValue === 4 && (
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h5" gutterBottom>
+                Low Stock Alerts
+              </Typography>
+              {lowStockData?.lowStockProducts && lowStockData.lowStockProducts.length > 0 ? (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>SKU</TableCell>
+                        <TableCell>Product Name</TableCell>
+                        <TableCell align="right">Current Stock</TableCell>
+                        <TableCell align="right">Threshold</TableCell>
+                        <TableCell>Supplier</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {lowStockData.lowStockProducts.map(product => (
+                        <TableRow key={product.id}>
+                          <TableCell>{product.sku}</TableCell>
+                          <TableCell>{product.name}</TableCell>
+                          <TableCell align="right">
+                            <Chip 
+                              label={product.stock} 
+                              color="error" 
+                              size="small"
+                              icon={<WarningIcon />}
+                            />
+                          </TableCell>
+                          <TableCell align="right">{product.lowStockThreshold}</TableCell>
+                          <TableCell>{product.supplier.name}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Box 
+                  sx={{ 
+                    textAlign: 'center', 
+                    py: 8,
+                    color: 'text.secondary'
+                  }}
+                >
+                  <WarningIcon sx={{ fontSize: 60, mb: 2, opacity: 0.3 }} />
+                  <Typography variant="h6" gutterBottom>
+                    No Low Stock Items
+                  </Typography>
+                  <Typography variant="body2">
+                    All products are currently above their low stock thresholds.
+                  </Typography>
+                </Box>
+              )}
             </Box>
           )}
         </Paper>
@@ -706,6 +907,19 @@ const UserDialog = ({ open, onClose, onSubmit, roles }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate name length
+    if (formData.name.trim().length < 2) {
+      alert('Name must be at least 2 characters');
+      return;
+    }
+    
+    // Validate password length
+    if (formData.password.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+    
     onSubmit(formData);
     setFormData({ email: '', password: '', name: '', roleId: '' });
   };
@@ -722,6 +936,8 @@ const UserDialog = ({ open, onClose, onSubmit, roles }) => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             margin="normal"
             required
+            inputProps={{ minLength: 2 }}
+            helperText="Minimum 2 characters"
           />
           <TextField
             fullWidth
@@ -740,6 +956,8 @@ const UserDialog = ({ open, onClose, onSubmit, roles }) => {
             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
             margin="normal"
             required
+            inputProps={{ minLength: 6 }}
+            helperText="Minimum 6 characters"
           />
           <TextField
             select
@@ -748,6 +966,7 @@ const UserDialog = ({ open, onClose, onSubmit, roles }) => {
             value={formData.roleId}
             onChange={(e) => setFormData({ ...formData, roleId: e.target.value })}
             SelectProps={{ native: true }}
+            InputLabelProps={{ shrink: true }}
             margin="normal"
             required
           >
