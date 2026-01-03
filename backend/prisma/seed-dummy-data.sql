@@ -61,7 +61,7 @@ BEGIN
         ('store_name', 'Smart POS Demo Store', admin_user_id, NOW(), NOW()),
         ('store_address', '123 Main Street, Business District, City, State 12345', admin_user_id, NOW(), NOW()),
         ('tax_rate', '8.5', admin_user_id, NOW(), NOW()),
-        ('currency', 'USD', admin_user_id, NOW(), NOW()),
+        ('currency', 'GBP', admin_user_id, NOW(), NOW()),
         ('receipt_footer', 'Thank you for your business!', admin_user_id, NOW(), NOW());
         
         RAISE NOTICE 'System configuration created successfully';

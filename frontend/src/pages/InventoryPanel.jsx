@@ -503,8 +503,8 @@ export const InventoryPanel = () => {
                         <TableCell>{product.sku}</TableCell>
                         <TableCell>{product.name}</TableCell>
                         <TableCell>{product.supplier.name}</TableCell>
-                        <TableCell align="right">₹{product.cost.toFixed(2)}</TableCell>
-                        <TableCell align="right">₹{product.price.toFixed(2)}</TableCell>
+                        <TableCell align="right">£{product.cost.toFixed(2)}</TableCell>
+                        <TableCell align="right">£{product.price.toFixed(2)}</TableCell>
                         <TableCell align="right">
                           <Chip
                             label={product.stock}
@@ -820,7 +820,7 @@ export const InventoryPanel = () => {
                               size="small"
                             />
                           </TableCell>
-                          <TableCell align="right">₹{order.total.toFixed(2)}</TableCell>
+                          <TableCell align="right">£{order.total.toFixed(2)}</TableCell>
                           <TableCell>{new Date(parseInt(order.createdAt)).toLocaleDateString()}</TableCell>
                           <TableCell align="center">
                             {order.status === 'pending' && (
@@ -873,8 +873,8 @@ export const InventoryPanel = () => {
                                       <TableRow key={index}>
                                         <TableCell>{item.product.name}</TableCell>
                                         <TableCell align="right">{item.quantity}</TableCell>
-                                        <TableCell align="right">₹{item.unitPrice.toFixed(2)}</TableCell>
-                                        <TableCell align="right">₹{(item.quantity * item.unitPrice).toFixed(2)}</TableCell>
+                                        <TableCell align="right">£{item.unitPrice.toFixed(2)}</TableCell>
+                                        <TableCell align="right">£{(item.quantity * item.unitPrice).toFixed(2)}</TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
@@ -1389,7 +1389,7 @@ const OrderDialog = ({ open, onClose, onSubmit, suppliers, products, reorderProd
 
           <Box sx={{ mt: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
             <Typography variant="h6">
-              Total: ₹{calculateTotal().toFixed(2)}
+              Total: £{calculateTotal().toFixed(2)}
             </Typography>
           </Box>
         </DialogContent>

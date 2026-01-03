@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { gql, useQuery, useMutation } from '@apollo/client';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -38,7 +38,8 @@ import {
   ShoppingCart as ShoppingCartIcon,
   AttachMoney as MoneyIcon,
   FileDownload as DownloadIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import { CSVLink } from 'react-csv';
 import {
@@ -130,8 +131,8 @@ const SYSTEM_CONFIGS_QUERY = gql`
 `;
 
 const SALES_ANALYTICS_QUERY = gql`
-  query SalesAnalytics {
-    salesAnalytics {
+  query SalesAnalytics($startDate: String, $endDate: String) {
+    salesAnalytics(startDate: $startDate, endDate: $endDate) {
       totalSales
       totalTransactions
       averageTransaction
@@ -199,7 +200,10 @@ export const AdminPanel = () => {
   const [configDialog, setConfigDialog] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [userFilter, setUserFilter] = useState('all'); // For audit logs filtering
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
 
+
+  const [editingConfig, setEditingConfig] = useState(null);
 
   const { data: usersData, refetch: refetchUsers } = useQuery(USERS_QUERY);
   const { data: rolesData } = useQuery(ROLES_QUERY);
@@ -207,7 +211,23 @@ export const AdminPanel = () => {
     variables: { limit: 100 }
   });
   const { data: configsData, refetch: refetchConfigs } = useQuery(SYSTEM_CONFIGS_QUERY);
-  const { data: salesData } = useQuery(SALES_ANALYTICS_QUERY);
+  
+  // Calculate date range for the selected month
+  const getMonthDateRange = (monthStr) => {
+    const start = new Date(monthStr + '-01');
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0); // Last day of month
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString()
+    };
+  };
+
+  const { startDate, endDate } = getMonthDateRange(selectedMonth);
+
+  const { data: salesData } = useQuery(SALES_ANALYTICS_QUERY, {
+    variables: { startDate, endDate },
+    fetchPolicy: 'network-only' // Ensure fresh data when filter changes
+  });
   const { data: inventoryData } = useQuery(INVENTORY_ANALYTICS_QUERY);
   const { data: lowStockData } = useQuery(LOW_STOCK_QUERY);
 
@@ -231,6 +251,7 @@ export const AdminPanel = () => {
     onCompleted: () => {
       refetchConfigs();
       setConfigDialog(false);
+      setEditingConfig(null);
       showSuccess('Configuration updated');
     }
   });
@@ -303,6 +324,18 @@ export const AdminPanel = () => {
                 Analytics Dashboard
               </Typography>
 
+              {/* Month Filter */}
+              <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-end' }}>
+                <TextField
+                  type="month"
+                  label="Filter by Month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  sx={{ width: 200 }}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Box>
+
               {/* Metric Cards */}
               <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={3}>
@@ -313,11 +346,11 @@ export const AdminPanel = () => {
                     <CardContent>
                       <Box display="flex" alignItems="center" justifyContent="space-between">
                         <Box>
-                          <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                          <Typography variant="body2" sx={{ color: 'white', opacity: 0.9, mb: 1 }}>
                             Total Sales
                           </Typography>
-                          <Typography variant="h4" fontWeight="bold">
-                            ₹{salesData?.salesAnalytics.totalSales.toFixed(2) || '0.00'}
+                          <Typography variant="h4" fontWeight="bold" sx={{ color: 'white' }}>
+                            £{salesData?.salesAnalytics.totalSales.toFixed(2) || '0.00'}
                           </Typography>
                         </Box>
                         <MoneyIcon sx={{ fontSize: 48, opacity: 0.3 }} />
@@ -334,10 +367,10 @@ export const AdminPanel = () => {
                     <CardContent>
                       <Box display="flex" alignItems="center" justifyContent="space-between">
                         <Box>
-                          <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                          <Typography variant="body2" sx={{ color: 'white', opacity: 0.9, mb: 1 }}>
                             Transactions
                           </Typography>
-                          <Typography variant="h4" fontWeight="bold">
+                          <Typography variant="h4" fontWeight="bold" sx={{ color: 'white' }}>
                             {salesData?.salesAnalytics.totalTransactions || 0}
                           </Typography>
                         </Box>
@@ -355,11 +388,11 @@ export const AdminPanel = () => {
                     <CardContent>
                       <Box display="flex" alignItems="center" justifyContent="space-between">
                         <Box>
-                          <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                          <Typography variant="body2" sx={{ color: 'white', opacity: 0.9, mb: 1 }}>
                             Avg Transaction
                           </Typography>
-                          <Typography variant="h4" fontWeight="bold">
-                            ₹{salesData?.salesAnalytics.averageTransaction.toFixed(2) || '0.00'}
+                          <Typography variant="h4" fontWeight="bold" sx={{ color: 'white' }}>
+                            £{salesData?.salesAnalytics.averageTransaction.toFixed(2) || '0.00'}
                           </Typography>
                         </Box>
                         <TrendingUpIcon sx={{ fontSize: 48, opacity: 0.3 }} />
@@ -376,10 +409,10 @@ export const AdminPanel = () => {
                     <CardContent>
                       <Box display="flex" alignItems="center" justifyContent="space-between">
                         <Box>
-                          <Typography variant="body2" sx={{ opacity: 0.9, mb: 1 }}>
+                          <Typography variant="body2" sx={{ color: 'white', opacity: 0.9, mb: 1 }}>
                             Total Products
                           </Typography>
-                          <Typography variant="h4" fontWeight="bold">
+                          <Typography variant="h4" fontWeight="bold" sx={{ color: 'white' }}>
                             {inventoryData?.inventoryAnalytics.totalProducts || 0}
                           </Typography>
                         </Box>
@@ -425,7 +458,7 @@ export const AdminPanel = () => {
                             strokeWidth={3}
                             dot={{ fill: '#667eea', r: 5 }}
                             activeDot={{ r: 7 }}
-                            name="Sales (₹)"
+                            name="Sales (£)"
                           />
                           <Line 
                             type="monotone" 
@@ -519,7 +552,7 @@ export const AdminPanel = () => {
                             strokeWidth={2}
                             fillOpacity={1} 
                             fill="url(#colorRevenue)"
-                            name="Revenue (₹)"
+                            name="Revenue (£)"
                           />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -554,7 +587,7 @@ export const AdminPanel = () => {
                             }}
                           />
                           <Legend />
-                          <Bar dataKey="revenue" fill="#667eea" name="Revenue (₹)" radius={[0, 8, 8, 0]} />
+                          <Bar dataKey="revenue" fill="#667eea" name="Revenue (£)" radius={[0, 8, 8, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
@@ -695,7 +728,10 @@ export const AdminPanel = () => {
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => setConfigDialog(true)}
+                  onClick={() => {
+                    setEditingConfig(null);
+                    setConfigDialog(true);
+                  }}
                 >
                   Add Config
                 </Button>
@@ -708,6 +744,7 @@ export const AdminPanel = () => {
                       <TableCell>Value</TableCell>
                       <TableCell>Updated By</TableCell>
                       <TableCell>Updated At</TableCell>
+                      <TableCell align="center">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -717,6 +754,18 @@ export const AdminPanel = () => {
                         <TableCell>{config.value}</TableCell>
                         <TableCell>{config.updatedBy.name}</TableCell>
                         <TableCell>{new Date(parseInt(config.updatedAt)).toLocaleString()}</TableCell>
+                        <TableCell align="center">
+                          <Button
+                            size="small"
+                            startIcon={<EditIcon />}
+                            onClick={() => {
+                              setEditingConfig(config);
+                              setConfigDialog(true);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -889,8 +938,12 @@ export const AdminPanel = () => {
       {/* Config Dialog */}
       <ConfigDialog
         open={configDialog}
-        onClose={() => setConfigDialog(false)}
+        onClose={() => {
+          setConfigDialog(false);
+          setEditingConfig(null);
+        }}
         onSubmit={handleConfigSubmit}
+        config={editingConfig}
       />
     </Box>
   );
@@ -988,22 +1041,35 @@ const UserDialog = ({ open, onClose, onSubmit, roles }) => {
 };
 
 // Config Dialog Component
-const ConfigDialog = ({ open, onClose, onSubmit }) => {
+const ConfigDialog = ({ open, onClose, onSubmit, config }) => {
   const [formData, setFormData] = useState({
     key: '',
     value: ''
   });
 
+  useEffect(() => {
+    if (config) {
+      setFormData({
+        key: config.key,
+        value: config.value
+      });
+    } else {
+      setFormData({
+        key: '',
+        value: ''
+      });
+    }
+  }, [config, open]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit(formData);
-    setFormData({ key: '', value: '' });
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <form onSubmit={handleSubmit}>
-        <DialogTitle>Set System Configuration</DialogTitle>
+        <DialogTitle>{config ? 'Edit Configuration' : 'Set System Configuration'}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -1013,6 +1079,8 @@ const ConfigDialog = ({ open, onClose, onSubmit }) => {
             margin="normal"
             required
             placeholder="e.g., store_name, store_address"
+            disabled={!!config}
+            helperText={config ? "Key cannot be changed" : ""}
           />
           <TextField
             fullWidth

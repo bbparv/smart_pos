@@ -60,7 +60,7 @@ export const reorderResolvers = {
 
   Mutation: {
     createOrder: async (_, { supplierId, items }, { prisma, user }) => {
-      requireMinRole(user, 'manager');
+      requireMinRole(user, 'cashier');
 
       // Calculate total and prepare order items
       let total = 0;
